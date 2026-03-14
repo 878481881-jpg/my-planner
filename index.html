@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>每日计划管家 Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --ios-blue: #007AFF;
+            --ios-bg: #f2f2f7;
+        }
+        body {
+            background-color: var(--ios-bg);
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            padding-bottom: 100px;
+        }
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease-out;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+        .tab-bar {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: saturate(180%) blur(20px);
+            border-top: 0.5px solid rgba(0, 0, 0, 0.1);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .tab-item {
+            color: #8e8e93;
+            transition: color 0.2s;
+        }
+        .tab-item.active {
+            color: var(--ios-blue);
+        }
+        
+        /* Date Picker UI */
+        .date-strip {
+            display: flex;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+        }
+        .date-card {
+            flex: 0 0 60px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 75px;
+            margin-right: 10px;
+            border-radius: 14px;
+            background: white;
+            transition: all 0.2s;
+            scroll-snap-align: center;
+        }
+        .date-card.active {
+            background: var(--ios-blue);
+            color: white;
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+        }
+        .date-card.active span { color: white !important; }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        input, select, textarea {
+            font-size: 16px !important;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header & Date Scroller -->
+    <header class="pt-6 pb-4">
+        <div class="px-6 flex justify-between items-center mb-4">
+            <h1 id="viewTitle" class="text-2xl font-bold text-slate-900">今日计划</h1>
+            <div class="relative">
+                <input type="date" id="datePicker" class="opacity-0 absolute w-8 h-8 pointer-events-auto cursor-pointer right-0 z-10">
+                <button class="bg-white p-2 rounded-full shadow-sm border border-slate-100 relative">
+                    <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Horizontal Date Strip -->
+        <div id="dateStrip" class="date-strip no-scrollbar px-6 pb-2">
+            <!-- Date cards injected here -->
+        </div>
+    </header>
+
+    <main class="px-4 pb-20">
+        
+        <!-- Tab 1: 制定计划 -->
+        <section id="tab-add" class="tab-content">
+            <div class="glass-card p-5 space-y-5">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">开始时间</label>
+                        <div class="flex gap-1">
+                            <select id="startHour" class="w-full rounded-xl border-slate-200 bg-slate-100/50 py-2 text-center"></select>
+                            <select id="startMin" class="w-full rounded-xl border-slate-200 bg-slate-100/50 py-2 text-center">
+                                <option value="00">00</option>
+                                <option value="30">30</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">结束时间</label>
+                        <div class="flex gap-1">
+                            <select id="endHour" class="w-full rounded-xl border-slate-200 bg-slate-100/50 py-2 text-center"></select>
+                            <select id="endMin" class="w-full rounded-xl border-slate-200 bg-slate-100/50 py-2 text-center">
+                                <option value="00">00</option>
+                                <option value="30">30</option>
+                                <option value="59">59</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">任务分类</label>
+                    <select id="planCategory" class="w-full rounded-xl border-slate-200 bg-slate-100/50 py-3 px-4">
+                        <option value="学习">📚 学习/工作</option>
+                        <option value="健身">💪 健身/运动</option>
+                        <option value="娱乐">🎮 娱乐/放松</option>
+                        <option value="生活">🏠 生活/日常</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">计划内容</label>
+                    <textarea id="planContent" rows="3" class="w-full rounded-xl border-slate-200 bg-slate-100/50 p-4" placeholder="写下你要做的事情..."></textarea>
+                </div>
+
+                <button id="addBtn" class="w-full bg-blue-600 active:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg transition-transform active:scale-95">
+                    保存到该日期
+                </button>
+            </div>
+        </section>
+
+        <!-- Tab 2: 今日计划 -->
+        <section id="tab-list" class="tab-content active">
+            <div class="grid grid-cols-2 gap-3 mb-6">
+                <div class="glass-card p-4">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">完成率</p>
+                    <p id="progressText" class="text-xl font-bold text-emerald-600">0%</p>
+                    <div class="w-full bg-slate-100 h-1.5 rounded-full mt-2 overflow-hidden">
+                        <div id="progressBar" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="glass-card p-4">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">满意度</p>
+                    <p id="satisfactionText" class="text-xl font-bold text-blue-600">0%</p>
+                    <div class="w-full bg-slate-100 h-1.5 rounded-full mt-2 overflow-hidden">
+                        <div id="satisfactionBar" class="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="planList" class="space-y-4 mb-8">
+                <!-- Items injected here -->
+            </div>
+
+            <!-- Daily Summary -->
+            <div class="glass-card p-5 mt-8 border-t-4 border-purple-500">
+                <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    总结与感悟
+                </h3>
+                <div class="flex justify-between bg-slate-50 p-2 rounded-xl mb-4">
+                    <button onclick="setMood('🤩')" class="mood-btn p-2 rounded-lg text-xl filter grayscale transition-all">🤩</button>
+                    <button onclick="setMood('😊')" class="mood-btn p-2 rounded-lg text-xl filter grayscale transition-all">😊</button>
+                    <button onclick="setMood('😐')" class="mood-btn p-2 rounded-lg text-xl filter grayscale transition-all">😐</button>
+                    <button onclick="setMood('😴')" class="mood-btn p-2 rounded-lg text-xl filter grayscale transition-all">😴</button>
+                    <button onclick="setMood('😫')" class="mood-btn p-2 rounded-lg text-xl filter grayscale transition-all">😫</button>
+                </div>
+                <textarea id="dailySummaryText" rows="3" oninput="saveSummary()" class="w-full rounded-xl border-slate-100 bg-slate-50 p-3 text-sm" placeholder="这一天过得怎么样？"></textarea>
+            </div>
+            
+            <div class="flex justify-center gap-6 mt-8 opacity-30">
+                <button onclick="exportData()" class="text-xs font-bold">导出备份</button>
+                <button onclick="clearDay()" class="text-xs font-bold text-red-500">重置日期</button>
+            </div>
+        </section>
+
+        <!-- Tab 3: 数据分析 -->
+        <section id="tab-data" class="tab-content">
+            <div class="space-y-6">
+                <div class="glass-card p-5">
+                    <h3 class="text-sm font-bold text-slate-800 mb-6 uppercase tracking-wider">时间占比</h3>
+                    <div id="categoryChart" class="space-y-5"></div>
+                </div>
+                <div class="glass-card p-5">
+                    <h3 class="text-sm font-bold text-slate-800 mb-2 uppercase tracking-wider">状态趋势 (近7天)</h3>
+                    <div id="trendChart" class="flex items-end justify-between h-32 pt-8 px-2 gap-2"></div>
+                    <div id="trendLabels" class="flex justify-between mt-3 px-2"></div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Navigation -->
+    <nav class="tab-bar fixed bottom-0 left-0 right-0 h-16 flex justify-around items-center z-50">
+        <button onclick="switchTab('add')" class="tab-item flex flex-col items-center gap-1">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4a1 1 0 011 1v6h6a1 1 0 110 2h-6v6a1 1 0 11-2 0v-6H5a1 1 0 110-2h6V5a1 1 0 011-1z"></path></svg>
+            <span class="text-[10px] font-medium">制定</span>
+        </button>
+        <button onclick="switchTab('list')" class="tab-item active flex flex-col items-center gap-1">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M4 6a1 1 0 011-1h14a1 1 0 110 2H5a1 1 0 01-1-1zm0 6a1 1 0 011-1h14a1 1 0 110 2H5a1 1 0 01-1-1zm1 5a1 1 0 100 2h14a1 1 0 100-2H5z"></path></svg>
+            <span class="text-[10px] font-medium">列表</span>
+        </button>
+        <button onclick="switchTab('data')" class="tab-item flex flex-col items-center gap-1">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M3 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zm7-8a1 1 0 011-1h2a1 1 0 011 1v14a1 1 0 01-1 1h-2a1 1 0 01-1-1V5zm7 4a1 1 0 011-1h2a1 1 0 011 1v10a1 1 0 01-1 1h-2a1 1 0 01-1-1V9z"></path></svg>
+            <span class="text-[10px] font-medium">统计</span>
+        </button>
+    </nav>
+
+    <div id="toast" class="fixed top-12 left-1/2 -translate-x-1/2 bg-slate-800/90 text-white px-6 py-2 rounded-full shadow-xl opacity-0 transition-opacity pointer-events-none z-[100] text-xs font-bold">提示</div>
+
+    <script>
+        let db = JSON.parse(localStorage.getItem('pro_planner_master_db') || '{"plans": {}, "summaries": {}}');
+        const datePicker = document.getElementById('datePicker');
+        let currentTab = 'list';
+
+        window.onload = function() {
+            const today = new Date().toLocaleDateString('en-CA');
+            datePicker.value = today;
+            
+            initDateStrip();
+            initTimeSelectors();
+            renderAll();
+        };
+
+        // --- Date Strip Logic ---
+        function initDateStrip() {
+            const strip = document.getElementById('dateStrip');
+            const today = new Date();
+            let html = '';
+            
+            // 生成 过去3天 到 未来10天
+            for(let i = -30; i <= 30; i++) {
+                const d = new Date();
+                d.setDate(today.getDate() + i);
+                const dStr = d.toLocaleDateString('en-CA');
+                const isToday = i === 0;
+                const dayName = d.toLocaleDateString('zh-CN', { weekday: 'short' });
+                const dateNum = d.getDate();
+                const isActive = dStr === datePicker.value;
+
+                html += `
+                    <div class="date-card ${isActive ? 'active' : ''}" onclick="selectDate('${dStr}')" id="date-card-${dStr}">
+                        <span class="text-[10px] font-bold ${isActive ? 'text-white' : 'text-slate-400'} uppercase">${dayName}</span>
+                        <span class="text-lg font-black">${dateNum}</span>
+                    </div>
+                `;
+            }
+            strip.innerHTML = html;
+            
+            // 自动滚动到激活位置
+            setTimeout(() => {
+                const activeCard = document.querySelector('.date-card.active');
+                if(activeCard) activeCard.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            }, 300);
+        }
+
+        function selectDate(dStr) {
+            datePicker.value = dStr;
+            updateDateUI();
+            renderAll();
+        }
+
+        datePicker.addEventListener('change', () => {
+            updateDateUI();
+            renderAll();
+        });
+
+        function updateDateUI() {
+            document.querySelectorAll('.date-card').forEach(c => c.classList.remove('active'));
+            const activeCard = document.getElementById(`date-card-${datePicker.value}`);
+            if(activeCard) {
+                activeCard.classList.add('active');
+                activeCard.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            } else {
+                // 如果选了范围外的日期，重新生成列表（简化处理，实际中可以动态加载）
+                initDateStrip();
+            }
+        }
+
+        // --- UI & Render Logic ---
+        function renderAll() {
+            renderList();
+            renderCharts();
+        }
+
+        function switchTab(tabId) {
+            currentTab = tabId;
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            
+            document.querySelectorAll('.tab-item').forEach(btn => btn.classList.remove('active'));
+            const index = tabId === 'add' ? 0 : (tabId === 'list' ? 1 : 2);
+            document.querySelectorAll('.tab-item')[index].classList.add('active');
+            
+            const titles = { 'add': '制定新计划', 'list': '每日计划', 'data': '数据分析统计' };
+            document.getElementById('viewTitle').innerText = titles[tabId];
+            
+            if(tabId === 'data') renderCharts();
+        }
+
+        function initTimeSelectors() {
+            const hNodes = [document.getElementById('startHour'), document.getElementById('endHour')];
+            let hOptions = '';
+            for (let i = 0; i < 24; i++) {
+                const h = String(i).padStart(2, '0');
+                hOptions += `<option value="${h}">${h}</option>`;
+            }
+            hNodes.forEach(n => n.innerHTML = hOptions);
+            
+            const now = new Date();
+            hNodes[0].value = String(now.getHours()).padStart(2, '0');
+            document.getElementById('startMin').value = now.getMinutes() < 30 ? "00" : "30";
+            hNodes[1].value = String((now.getHours() + 1) % 24).padStart(2, '0');
+            document.getElementById('endMin').value = document.getElementById('startMin').value;
+        }
+
+        // --- Core Functions ---
+        document.getElementById('addBtn').addEventListener('click', () => {
+            const date = datePicker.value;
+            const content = document.getElementById('planContent').value.trim();
+            const startStr = `${document.getElementById('startHour').value}:${document.getElementById('startMin').value}`;
+            const endStr = `${document.getElementById('endHour').value}:${document.getElementById('endMin').value}`;
+            const cat = document.getElementById('planCategory').value;
+
+            if (!content) return showToast('请输入计划内容');
+            
+            if (!db.plans[date]) db.plans[date] = [];
+            db.plans[date].push({
+                id: Date.now(),
+                timeRange: [startStr, endStr],
+                content,
+                category: cat,
+                completed: false,
+                satisfaction: 0
+            });
+            db.plans[date].sort((a, b) => a.timeRange[0].localeCompare(b.timeRange[0]));
+            saveAll();
+            document.getElementById('planContent').value = '';
+            showToast('已保存计划');
+            switchTab('list');
+        });
+
+        function renderList() {
+            const date = datePicker.value;
+            const list = document.getElementById('planList');
+            const dayPlans = db.plans[date] || [];
+            const summary = db.summaries[date] || { mood: '', text: '' };
+            
+            if (dayPlans.length === 0) {
+                list.innerHTML = `<div class="py-16 text-center text-slate-300">
+                    <p class="text-5xl mb-4 opacity-20">📝</p>
+                    <p class="text-sm font-medium">该日期暂无计划</p>
+                </div>`;
+            } else {
+                list.innerHTML = dayPlans.map(item => `
+                    <div class="glass-card p-4 flex items-start gap-4 transition-all ${item.completed ? 'opacity-60 bg-slate-50' : ''}">
+                        <input type="checkbox" ${item.completed ? 'checked' : ''} 
+                               onchange="updatePlan(${item.id}, 'completed', this.checked)"
+                               class="mt-1 w-6 h-6 rounded-full border-slate-300 text-blue-600 focus:ring-0">
+                        <div class="flex-grow min-w-0">
+                            <div class="flex justify-between items-start mb-1">
+                                <span class="text-[9px] font-black text-blue-500 uppercase tracking-widest">${item.category}</span>
+                                <span class="text-[10px] text-slate-400 font-bold">${item.timeRange[0]} - ${item.timeRange[1]}</span>
+                            </div>
+                            <h3 class="text-slate-800 font-bold text-base truncate ${item.completed ? 'line-through' : ''}">${item.content}</h3>
+                            
+                            ${item.completed ? `
+                            <div class="mt-4 pt-3 border-t border-slate-100 space-y-2">
+                                <div class="flex justify-between text-[10px] font-bold text-slate-400 uppercase">
+                                    <span>打分</span>
+                                    <span class="text-blue-600">${item.satisfaction}%</span>
+                                </div>
+                                <input type="range" min="0" max="100" step="10" value="${item.satisfaction}" 
+                                       onchange="updatePlan(${item.id}, 'satisfaction', this.value)"
+                                       class="w-full h-1 bg-slate-200 rounded-lg appearance-none accent-blue-600">
+                            </div>
+                            ` : ''}
+                        </div>
+                        <button onclick="removePlan(${item.id})" class="text-slate-300 active:text-red-500 transition-colors p-1">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                        </button>
+                    </div>
+                `).join('');
+            }
+
+            document.getElementById('dailySummaryText').value = summary.text || '';
+            document.querySelectorAll('.mood-btn').forEach(btn => {
+                const active = btn.innerText === summary.mood;
+                btn.style.filter = active ? 'grayscale(0)' : 'grayscale(1)';
+                btn.style.transform = active ? 'scale(1.2)' : 'scale(1)';
+            });
+
+            const completedCount = dayPlans.filter(p => p.completed).length;
+            const compRate = dayPlans.length ? Math.round((completedCount / dayPlans.length) * 100) : 0;
+            const satRate = dayPlans.length ? Math.round(dayPlans.reduce((a, b) => a + parseInt(b.satisfaction || 0), 0) / dayPlans.length) : 0;
+            
+            document.getElementById('progressBar').style.width = compRate + '%';
+            document.getElementById('progressText').innerText = compRate + '%';
+            document.getElementById('satisfactionBar').style.width = satRate + '%';
+            document.getElementById('satisfactionText').innerText = satRate + '%';
+        }
+
+        function renderCharts() {
+            const date = datePicker.value;
+            const dayPlans = db.plans[date] || [];
+            const cats = ['学习', '健身', '娱乐', '生活'];
+            const catColors = { '学习': 'bg-blue-500', '健身': 'bg-emerald-500', '娱乐': 'bg-purple-500', '生活': 'bg-orange-500' };
+            const stats = { '学习': 0, '健身': 0, '娱乐': 0, '生活': 0 };
+            dayPlans.forEach(p => stats[p.category]++);
+
+            document.getElementById('categoryChart').innerHTML = cats.map(c => {
+                const pct = dayPlans.length ? (stats[c] / dayPlans.length) * 100 : 0;
+                return `
+                    <div class="space-y-1.5">
+                        <div class="flex justify-between text-[11px] font-bold text-slate-500 px-1">
+                            <span>${c}</span>
+                            <span>${Math.round(pct)}%</span>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                            <div class="chart-bar ${catColors[c]} h-full transition-all duration-1000" style="width: ${pct}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            let trendHtml = '';
+            let labelHtml = '';
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const dStr = d.toLocaleDateString('en-CA');
+                const p = db.plans[dStr] || [];
+                const sat = p.length ? (p.reduce((a, b) => a + parseInt(b.satisfaction || 0), 0) / p.length) : 0;
+                trendHtml += `
+                    <div class="flex-1 flex flex-col items-center justify-end h-full">
+                        <div class="w-full max-w-[12px] ${dStr === date ? 'bg-blue-500' : 'bg-slate-200'} rounded-t-sm transition-all duration-1000" style="height: ${Math.max(sat, 5)}%"></div>
+                    </div>
+                `;
+                labelHtml += `<span class="text-[9px] font-bold text-slate-400">${dStr.slice(8)}</span>`;
+            }
+            document.getElementById('trendChart').innerHTML = trendHtml;
+            document.getElementById('trendLabels').innerHTML = labelHtml;
+        }
+
+        // --- Data Persistence ---
+        function setMood(m) {
+            const d = datePicker.value;
+            if (!db.summaries[d]) db.summaries[d] = { mood: '', text: '' };
+            db.summaries[d].mood = m;
+            saveAll();
+        }
+
+        function saveSummary() {
+            const d = datePicker.value;
+            const t = document.getElementById('dailySummaryText').value;
+            if (!db.summaries[d]) db.summaries[d] = { mood: '', text: '' };
+            db.summaries[d].text = t;
+            saveAll(false); // 不重绘列表，防止输入闪烁
+        }
+
+        function updatePlan(id, key, val) {
+            const d = datePicker.value;
+            db.plans[d] = db.plans[d].map(p => p.id === id ? {...p, [key]: val} : p);
+            saveAll();
+        }
+
+        function removePlan(id) {
+            const d = datePicker.value;
+            db.plans[d] = db.plans[d].filter(p => p.id !== id);
+            saveAll();
+        }
+
+        function clearDay() {
+            if(confirm('重置该日期的所有记录吗？')) {
+                const d = datePicker.value;
+                delete db.plans[d];
+                delete db.summaries[d];
+                saveAll();
+            }
+        }
+
+        function saveAll(shouldRender = true) {
+            localStorage.setItem('pro_planner_master_db', JSON.stringify(db));
+            if(shouldRender) renderAll();
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.classList.remove('opacity-0');
+            setTimeout(() => t.classList.add('opacity-0'), 2000);
+        }
+
+        function exportData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
+            const dl = document.createElement('a');
+            dl.setAttribute("href", dataStr);
+            dl.setAttribute("download", `planner_backup.json`);
+            dl.click();
+            showToast('备份已导出');
+        }
+    </script>
+</body>
+</html>
