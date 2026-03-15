@@ -235,9 +235,18 @@
                 <textarea id="dailySummaryText" rows="3" oninput="saveSummary()" class="w-full rounded-xl border-slate-100 bg-slate-50 p-3 text-sm" placeholder="这一天过得怎么样？"></textarea>
             </div>
             
-            <div class="flex justify-center gap-6 mt-8 opacity-30">
-                <button onclick="exportData()" class="text-xs font-bold">导出备份</button>
-                <button onclick="clearDay()" class="text-xs font-bold text-red-500">重置日期</button>
+            <div class="flex flex-wrap justify-center gap-3 mt-8 opacity-80">
+                <button onclick="fetchFromGithub(false)" class="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-2 rounded-lg flex items-center gap-1 shadow-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    读取云端
+                </button>
+                <button onclick="uploadToGithub()" class="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg flex items-center gap-1 shadow-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    同步云端
+                </button>
+                <button onclick="openGithubModal()" class="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-2 rounded-lg shadow-sm">GitHub设置</button>
+                <button onclick="exportData()" class="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-2 rounded-lg shadow-sm">导出备份</button>
+                <button onclick="clearDay()" class="text-xs font-bold text-red-500 bg-red-50 px-3 py-2 rounded-lg shadow-sm">重置日期</button>
             </div>
         </section>
 
@@ -277,12 +286,149 @@
         </button>
     </nav>
 
-    <div id="toast" class="fixed top-12 left-1/2 -translate-x-1/2 bg-slate-800/90 text-white px-6 py-2 rounded-full shadow-xl opacity-0 transition-opacity pointer-events-none z-[100] text-xs font-bold">提示</div>
+    <!-- GitHub 配置弹窗 -->
+    <div id="githubModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center hidden">
+        <div class="bg-white w-[90%] max-w-sm rounded-3xl p-6 shadow-2xl transform transition-all">
+            <div class="flex items-center gap-3 mb-4">
+                <svg class="w-6 h-6 text-slate-800" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"></path></svg>
+                <h2 class="text-xl font-bold text-slate-800">配置 GitHub 存储</h2>
+            </div>
+            <p class="text-xs text-slate-500 mb-5 leading-relaxed">配置后可实现多端云同步。需提供带有读写仓库权限的 Personal Access Token。</p>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">GitHub Token</label>
+                    <input type="password" id="ghToken" class="w-full rounded-xl border-slate-200 bg-slate-50 py-2.5 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="ghp_xxxxxx">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">仓库名称 (Owner/Repo)</label>
+                    <input type="text" id="ghRepo" class="w-full rounded-xl border-slate-200 bg-slate-50 py-2.5 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="username/my-planner">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">存储文件路径</label>
+                    <input type="text" id="ghPath" class="w-full rounded-xl border-slate-200 bg-slate-50 py-2.5 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="data/db.json" value="data/planner_db.json">
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeGithubModal()" class="flex-1 py-3 rounded-xl bg-slate-100 text-slate-600 font-bold text-sm active:bg-slate-200">取消</button>
+                <button onclick="saveGithubConfig()" class="flex-[2] py-3 rounded-xl bg-slate-800 text-white font-bold text-sm shadow-md active:scale-95 transition-transform">保存并连接云端</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed top-12 left-1/2 -translate-x-1/2 bg-slate-800/90 text-white px-6 py-2 rounded-full shadow-xl opacity-0 transition-opacity pointer-events-none z-[110] text-xs font-bold text-center w-max max-w-[90%]">提示</div>
 
     <script>
         let db = JSON.parse(localStorage.getItem('pro_planner_master_db') || '{"plans": {}, "summaries": {}}');
         const datePicker = document.getElementById('datePicker');
         const monthLabel = document.getElementById('currentMonthLabel');
+
+        // --- GitHub 同步相关逻辑开始 ---
+        let githubConfig = JSON.parse(localStorage.getItem('pro_planner_github_config')) || null;
+        let githubSha = null;
+
+        function openGithubModal() {
+            if(githubConfig) {
+                document.getElementById('ghToken').value = githubConfig.token;
+                document.getElementById('ghRepo').value = githubConfig.repo;
+                document.getElementById('ghPath').value = githubConfig.path;
+            }
+            document.getElementById('githubModal').classList.remove('hidden');
+        }
+
+        function closeGithubModal() {
+            document.getElementById('githubModal').classList.add('hidden');
+        }
+
+        function saveGithubConfig() {
+            const token = document.getElementById('ghToken').value.trim();
+            const repo = document.getElementById('ghRepo').value.trim();
+            const path = document.getElementById('ghPath').value.trim();
+            if(!token || !repo || !path) return showToast('请填写完整信息');
+            
+            githubConfig = { token, repo, path };
+            localStorage.setItem('pro_planner_github_config', JSON.stringify(githubConfig));
+            closeGithubModal();
+            showToast('配置已保存，正在读取云端数据...');
+            fetchFromGithub(true);
+        }
+
+        // 解决中文字符在 Base64 转换时的报错问题
+        function utf8_to_b64(str) {
+            return window.btoa(unescape(encodeURIComponent(str)));
+        }
+        function b64_to_utf8(str) {
+            return decodeURIComponent(escape(window.atob(str)));
+        }
+
+        async function fetchFromGithub(isAuto = false) {
+            if(!githubConfig) {
+                if(!isAuto) openGithubModal();
+                return;
+            }
+            if(!isAuto) showToast('正在从 GitHub 读取数据...');
+            
+            try {
+                const res = await fetch(`https://api.github.com/repos/${githubConfig.repo}/contents/${githubConfig.path}`, {
+                    headers: {
+                        'Authorization': `token ${githubConfig.token}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+                
+                if (res.status === 404) {
+                    showToast('云端尚无数据，已准备好上传');
+                    return;
+                }
+                
+                if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+                
+                const data = await res.json();
+                githubSha = data.sha;
+                const content = b64_to_utf8(data.content);
+                db = JSON.parse(content);
+                saveAll(true); // 保存到本地并重新渲染
+                showToast('已成功同步云端数据！');
+            } catch(e) {
+                console.error(e);
+                showToast('读取失败：请检查配置或网络环境');
+                if(isAuto) setTimeout(openGithubModal, 1500);
+            }
+        }
+
+        async function uploadToGithub() {
+            if(!githubConfig) return openGithubModal();
+            showToast('正在上传数据到 GitHub...');
+            
+            const content = utf8_to_b64(JSON.stringify(db));
+            try {
+                const body = {
+                    message: `Sync planner data via Web - ${new Date().toLocaleString('zh-CN')}`,
+                    content: content
+                };
+                if (githubSha) body.sha = githubSha; // 如果已存在文件，必须带上 sha 才能更新
+
+                const res = await fetch(`https://api.github.com/repos/${githubConfig.repo}/contents/${githubConfig.path}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${githubConfig.token}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+                
+                if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+                
+                const data = await res.json();
+                githubSha = data.content.sha; // 更新本地 sha
+                showToast('云端数据同步成功！');
+            } catch(e) {
+                console.error(e);
+                showToast('同步失败，可能存在冲突或网络错误');
+            }
+        }
+        // --- GitHub 同步相关逻辑结束 ---
+
 
         // 关键词词库
         const keywordMap = {
@@ -314,6 +460,14 @@
             initDateStrip();
             initTimeSelectors();
             renderAll();
+
+            // 进入页面自动处理 GitHub 配置和读取
+            if (githubConfig) {
+                fetchFromGithub(true);
+            } else {
+                // 如果没有配置，延迟500ms弹出配置窗口，让页面先渲染完成
+                setTimeout(openGithubModal, 500);
+            }
         };
 
         // 核心功能：自动分类
@@ -631,16 +785,19 @@
             const t = document.getElementById('toast');
             t.innerText = msg;
             t.classList.remove('opacity-0');
-            setTimeout(() => t.classList.add('opacity-0'), 2000);
+            
+            // 如果已有计时器先清除
+            if(window.toastTimer) clearTimeout(window.toastTimer);
+            window.toastTimer = setTimeout(() => t.classList.add('opacity-0'), 2500);
         }
 
         function exportData() {
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
             const dl = document.createElement('a');
             dl.setAttribute("href", dataStr);
-            dl.setAttribute("download", `planner_backup.json`);
+            dl.setAttribute("download", `planner_backup_${new Date().toLocaleDateString('en-CA')}.json`);
             dl.click();
-            showToast('备份已导出');
+            showToast('备份已导出到本地');
         }
     </script>
 </body>
