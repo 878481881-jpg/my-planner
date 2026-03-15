@@ -105,6 +105,16 @@
         .cat-健身 { background-color: #10b981; }
         .cat-娱乐 { background-color: #a855f7; }
         .cat-生活 { background-color: #f97316; }
+
+        /* 自动匹配时的反馈动画 */
+        .auto-matched {
+            animation: pulse-blue 0.4s ease-out;
+        }
+        @keyframes pulse-blue {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); border-color: #007AFF; }
+            100% { transform: scale(1); }
+        }
     </style>
 </head>
 <body>
@@ -160,7 +170,7 @@
 
                 <div>
                     <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">任务分类</label>
-                    <select id="planCategory" class="w-full rounded-xl border-slate-200 bg-slate-100/50 py-3 px-4">
+                    <select id="planCategory" class="w-full rounded-xl border-slate-200 bg-slate-100/50 py-3 px-4 transition-all duration-300">
                         <option value="学习">📚 学习/工作</option>
                         <option value="健身">💪 健身/运动</option>
                         <option value="娱乐">🎮 娱乐/放松</option>
@@ -170,12 +180,17 @@
 
                 <div>
                     <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">常用历史计划</label>
-                    <div id="historyTagList" class="flex flex-wrap max-h-32 overflow-y-auto no-scrollbar"></div>
+                    <div id="historyTagList" class="flex flex-wrap max-h-24 overflow-y-auto no-scrollbar"></div>
                 </div>
 
                 <div>
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">计划内容</label>
-                    <textarea id="planContent" rows="3" class="w-full rounded-xl border-slate-200 bg-slate-100/50 p-4" placeholder="写下你要做的事情..."></textarea>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">计划标题 (输入即自动分类)</label>
+                    <input type="text" id="planContent" oninput="autoCategorize(this.value)" class="w-full rounded-xl border-slate-200 bg-slate-100/50 py-3 px-4" placeholder="要做什么？">
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">任务描述 (可选)</label>
+                    <textarea id="planDescription" rows="2" class="w-full rounded-xl border-slate-200 bg-slate-100/50 p-4 text-sm" placeholder="补充任务细节或注意事项..."></textarea>
                 </div>
 
                 <button id="addBtn" class="w-full bg-blue-600 active:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg transition-transform active:scale-95">
@@ -229,26 +244,17 @@
         <!-- Tab 3: 数据分析 -->
         <section id="tab-data" class="tab-content">
             <div class="space-y-6">
-                <!-- Charts Section -->
                 <div class="glass-card p-5">
                     <h3 class="text-sm font-bold text-slate-800 mb-6 uppercase tracking-wider">分类占比</h3>
                     <div id="categoryChart" class="space-y-5"></div>
                 </div>
-                <div class="glass-card p-5">
-                    <h3 class="text-sm font-bold text-slate-800 mb-2 uppercase tracking-wider">满意度趋势</h3>
-                    <div id="trendChart" class="flex items-end justify-between h-32 pt-8 px-2 gap-2"></div>
-                    <div id="trendLabels" class="flex justify-between mt-3 px-2"></div>
-                </div>
 
-                <!-- NEW: All Items List Section -->
                 <div class="glass-card p-5">
                     <div class="flex justify-between items-center mb-6">
                         <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">执行记录汇总</h3>
                         <span class="text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">全部历史</span>
                     </div>
-                    <div id="fullHistoryList" class="space-y-6 max-h-[500px] overflow-y-auto no-scrollbar pr-1">
-                        <!-- History items grouped by date will be injected here -->
-                    </div>
+                    <div id="fullHistoryList" class="space-y-6 max-h-[600px] overflow-y-auto no-scrollbar pr-1"></div>
                 </div>
             </div>
         </section>
@@ -278,6 +284,30 @@
         const datePicker = document.getElementById('datePicker');
         const monthLabel = document.getElementById('currentMonthLabel');
 
+        // 关键词词库
+        const keywordMap = {
+            '学习': [
+                '读', '写', '背书', '考', '课', '英语', '代码', '学习', '工作', '项目', '会议', '书', '论文', '研究', 'PPT', '总结', '报告', '文档', 
+                '实验', '复习', '预习', '讲座', '培训', '听力', '词', '阅读', '作业', '刷题', '面试', '投递', '简历', '整理资料', '周报', '日报',
+                'Office', 'Excel', 'Word', 'Python', '编程', '算法', '课程', '听讲', '笔记', '思考'
+            ],
+            '健身': [
+                '跑', '练', '健', '绳', '球', '游泳', '运动', '健身', '撸铁', '操', '伸展', '瑜伽', '步行', '走', '单车', '骑', '哑铃', '杠铃',
+                '深蹲', '卧推', '俯卧撑', '仰卧起坐', '平板支撑', '腹肌', '背', '胸', '腿', '拉伸', '有氧', '无氧', 'HIIT', '足球', '篮球', '排球',
+                '羽毛球', '乒乓球', '网球', '跳舞', '搏击', '武术', '散步', '登山', '爬山', '快走', '跑步机'
+            ],
+            '娱乐': [
+                '玩', '剧', '游', '看', '电影', '游戏', '放松', '听', '刷', '短视频', '社交', '聚会', '王者', '吃鸡', '原神', '逛', '买', '购',
+                'K歌', '唱歌', '直播', '抖音', '小红书', 'B站', '追剧', '综艺', '旅游', '发呆', '聚餐', '喝咖啡', '下午茶', '喝酒', '网吧', '剧本杀', 
+                '密室', '桌游', '动漫', '小说', '漫画', '电竞'
+            ],
+            '生活': [
+                '吃', '睡', '洗', '收拾', '回家', '休息', '打扫', '购物', '菜', '饭', '洗澡', '睡觉', '快递', '取', '拿', '倒', '垃圾', '物业', 
+                '水电', '话费', '银行', '办事', '遛狗', '铲屎', '猫', '喂', '护肤', '化妆', '剪头', '理发', '洗衣', '晾晒', '浇花', '换水',
+                '体检', '医院', '买药', '喝水', '醒', '闹钟', '整理', '家务', '搬家', '装修', '寄', '顺丰'
+            ]
+        };
+
         window.onload = function() {
             const today = new Date().toLocaleDateString('en-CA');
             datePicker.value = today;
@@ -285,6 +315,25 @@
             initTimeSelectors();
             renderAll();
         };
+
+        // 核心功能：自动分类
+        function autoCategorize(text) {
+            if (!text) return;
+            const categorySelect = document.getElementById('planCategory');
+            let matched = false;
+
+            for (const [cat, keywords] of Object.entries(keywordMap)) {
+                if (keywords.some(kw => text.includes(kw))) {
+                    if (categorySelect.value !== cat) {
+                        categorySelect.value = cat;
+                        categorySelect.classList.add('auto-matched');
+                        setTimeout(() => categorySelect.classList.remove('auto-matched'), 400);
+                    }
+                    matched = true;
+                    break;
+                }
+            }
+        }
 
         function initDateStrip() {
             const strip = document.getElementById('dateStrip');
@@ -342,7 +391,7 @@
             renderList();
             renderCharts();
             renderHistoryTags();
-            renderFullHistory(); // 渲染所有日期汇总
+            renderFullHistory();
         }
 
         function switchTab(tabId) {
@@ -354,26 +403,27 @@
             const titles = { 'add': '制定新计划', 'list': '每日计划', 'data': '数据分析统计' };
             document.getElementById('viewTitle').innerText = titles[tabId];
             if(tabId === 'add') renderHistoryTags();
-            if(tabId === 'data') renderCharts(); renderFullHistory();
+            if(tabId === 'data') { renderCharts(); renderFullHistory(); }
         }
 
         function renderHistoryTags() {
             const container = document.getElementById('historyTagList');
             const histories = {};
-            Object.values(db.plans).forEach(dayPlans => dayPlans.forEach(p => histories[p.content] = p.category));
+            Object.values(db.plans).forEach(dayPlans => dayPlans.forEach(p => histories[p.content] = {cat: p.category, desc: p.description || ''}));
             const uniqueContents = Object.keys(histories);
             if (uniqueContents.length === 0) {
                 container.innerHTML = `<span class="text-[10px] text-slate-400">暂无历史记录</span>`;
                 return;
             }
             container.innerHTML = uniqueContents.slice(-15).reverse().map(content => `
-                <button onclick="quickFill('${content}', '${histories[content]}')" class="history-tag">${content}</button>
+                <button onclick="quickFill('${content}', '${histories[content].cat}', '${histories[content].desc}')" class="history-tag">${content}</button>
             `).join('');
         }
 
-        function quickFill(content, category) {
+        function quickFill(content, category, description) {
             document.getElementById('planContent').value = content;
             document.getElementById('planCategory').value = category;
+            document.getElementById('planDescription').value = description;
             showToast('已自动填充: ' + content);
         }
 
@@ -392,12 +442,14 @@
         document.getElementById('addBtn').addEventListener('click', () => {
             const date = datePicker.value;
             const content = document.getElementById('planContent').value.trim();
+            const description = document.getElementById('planDescription').value.trim();
             if (!content) return showToast('请输入计划内容');
             if (!db.plans[date]) db.plans[date] = [];
             db.plans[date].push({
                 id: Date.now(),
                 timeRange: [`${document.getElementById('startHour').value}:${document.getElementById('startMin').value}`, `${document.getElementById('endHour').value}:${document.getElementById('endMin').value}`],
                 content,
+                description,
                 category: document.getElementById('planCategory').value,
                 completed: false,
                 satisfaction: 0,
@@ -406,6 +458,7 @@
             db.plans[date].sort((a, b) => a.timeRange[0].localeCompare(b.timeRange[0]));
             saveAll();
             document.getElementById('planContent').value = '';
+            document.getElementById('planDescription').value = '';
             showToast('已保存计划');
             switchTab('list');
         });
@@ -428,6 +481,7 @@
                                     <span class="text-[10px] text-slate-400 font-bold">${item.timeRange[0]} - ${item.timeRange[1]}</span>
                                 </div>
                                 <h3 class="text-slate-800 font-bold text-base truncate ${item.completed ? 'line-through text-slate-400' : ''}">${item.content}</h3>
+                                ${item.description ? `<p class="text-xs text-slate-500 mt-0.5 ${item.completed ? 'line-through opacity-50' : ''}">${item.description}</p>` : ''}
                             </div>
                             <button onclick="removePlan(${item.id})" class="text-slate-300 active:text-red-500 transition-colors p-1"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg></button>
                         </div>
@@ -474,38 +528,19 @@
                     <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden"><div class="chart-bar ${catColors[c]} h-full transition-all duration-1000" style="width: ${pct}%"></div></div>
                 </div>`;
             }).join('');
-            let trendHtml = '', labelHtml = '';
-            for (let i = 6; i >= 0; i--) {
-                const d = new Date(); d.setDate(d.getDate() - i);
-                const dStr = d.toLocaleDateString('en-CA');
-                const p = db.plans[dStr] || [];
-                const sat = p.length ? (p.reduce((a, b) => a + parseInt(b.satisfaction || 0), 0) / p.length) : 0;
-                trendHtml += `<div class="flex-1 flex flex-col items-center justify-end h-full"><div class="w-full max-w-[12px] ${dStr === date ? 'bg-blue-500' : 'bg-slate-200'} rounded-t-sm transition-all duration-1000" style="height: ${Math.max(sat, 5)}%"></div></div>`;
-                labelHtml += `<span class="text-[9px] font-bold text-slate-400">${dStr.slice(8)}</span>`;
-            }
-            document.getElementById('trendChart').innerHTML = trendHtml;
-            document.getElementById('trendLabels').innerHTML = labelHtml;
         }
 
-        /**
-         * 新增：渲染所有日期的所有项目列表
-         */
         function renderFullHistory() {
             const container = document.getElementById('fullHistoryList');
-            // 按日期倒序排列
             const sortedDates = Object.keys(db.plans).sort((a, b) => b.localeCompare(a));
-            
             if (sortedDates.length === 0) {
                 container.innerHTML = `<div class="text-center py-8 text-slate-300 text-xs">暂无历史记录</div>`;
                 return;
             }
-
             let html = '';
             sortedDates.forEach(date => {
                 const dayPlans = db.plans[date] || [];
                 if (dayPlans.length === 0) return;
-
-                // 日期分割线
                 html += `
                     <div class="relative py-2">
                         <div class="absolute inset-0 flex items-center" aria-hidden="true">
@@ -516,21 +551,21 @@
                         </div>
                     </div>
                 `;
-
-                // 该日期的项目
                 dayPlans.forEach(item => {
                     html += `
                         <div class="bg-slate-50/50 rounded-xl p-3 border border-slate-100 mb-2">
                             <div class="flex justify-between items-start mb-2">
-                                <div class="flex items-center gap-2">
-                                    <span class="cat-tag cat-${item.category}">${item.category}</span>
-                                    <h4 class="text-xs font-bold text-slate-700">${item.content}</h4>
+                                <div class="flex flex-col gap-1">
+                                    <div class="flex items-center gap-2">
+                                        <span class="cat-tag cat-${item.category}">${item.category}</span>
+                                        <h4 class="text-xs font-bold text-slate-700">${item.content}</h4>
+                                    </div>
+                                    ${item.description ? `<p class="text-[10px] text-slate-400 pl-1">${item.description}</p>` : ''}
                                 </div>
                                 <span class="text-[9px] text-slate-400 font-medium">${item.timeRange[0]}</span>
                             </div>
-                            
                             ${item.completed ? `
-                                <div class="pl-2 border-l-2 border-emerald-200">
+                                <div class="pl-2 border-l-2 border-emerald-200 mt-2">
                                     <p class="text-[11px] text-slate-500 italic leading-relaxed">
                                         ${item.accomplishment || '<span class="text-slate-300">未填写执行细节</span>'}
                                     </p>
@@ -539,7 +574,7 @@
                                     </div>
                                 </div>
                             ` : `
-                                <div class="pl-2 border-l-2 border-slate-200">
+                                <div class="pl-2 border-l-2 border-slate-200 mt-2">
                                     <p class="text-[11px] text-slate-300 font-medium italic">计划未完成</p>
                                 </div>
                             `}
@@ -547,7 +582,6 @@
                     `;
                 });
             });
-
             container.innerHTML = html;
         }
 
