@@ -106,7 +106,6 @@
         .cat-娱乐 { background-color: #a855f7; }
         .cat-生活 { background-color: #f97316; }
 
-        /* 自动匹配时的反馈动画 */
         .auto-matched {
             animation: pulse-blue 0.4s ease-out;
         }
@@ -253,11 +252,19 @@
         <!-- Tab 3: 数据分析 -->
         <section id="tab-data" class="tab-content">
             <div class="space-y-6">
+                <!-- 每日分类占比与时长 -->
                 <div class="glass-card p-5">
-                    <h3 class="text-sm font-bold text-slate-800 mb-6 uppercase tracking-wider">分类占比</h3>
+                    <h3 class="text-sm font-bold text-slate-800 mb-6 uppercase tracking-wider">当日计划分类与时长</h3>
                     <div id="categoryChart" class="space-y-5"></div>
                 </div>
 
+                <!-- 历史累计时长 -->
+                <div class="glass-card p-5">
+                    <h3 class="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wider">历史累计投入时长</h3>
+                    <div id="historicalTimeChart" class="grid grid-cols-2 gap-3"></div>
+                </div>
+
+                <!-- 历史执行记录汇总 -->
                 <div class="glass-card p-5">
                     <div class="flex justify-between items-center mb-6">
                         <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">执行记录汇总</h3>
@@ -352,7 +359,6 @@
             fetchFromGithub(true);
         }
 
-        // 解决中文字符在 Base64 转换时的报错问题
         function utf8_to_b64(str) {
             return window.btoa(unescape(encodeURIComponent(str)));
         }
@@ -386,7 +392,7 @@
                 githubSha = data.sha;
                 const content = b64_to_utf8(data.content);
                 db = JSON.parse(content);
-                saveAll(true); // 保存到本地并重新渲染
+                saveAll(true);
                 showToast('已成功同步云端数据！');
             } catch(e) {
                 console.error(e);
@@ -405,7 +411,7 @@
                     message: `Sync planner data via Web - ${new Date().toLocaleString('zh-CN')}`,
                     content: content
                 };
-                if (githubSha) body.sha = githubSha; // 如果已存在文件，必须带上 sha 才能更新
+                if (githubSha) body.sha = githubSha;
 
                 const res = await fetch(`https://api.github.com/repos/${githubConfig.repo}/contents/${githubConfig.path}`, {
                     method: 'PUT',
@@ -420,7 +426,7 @@
                 if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
                 
                 const data = await res.json();
-                githubSha = data.content.sha; // 更新本地 sha
+                githubSha = data.content.sha;
                 showToast('云端数据同步成功！');
             } catch(e) {
                 console.error(e);
@@ -428,7 +434,6 @@
             }
         }
         // --- GitHub 同步相关逻辑结束 ---
-
 
         // 关键词词库
         const keywordMap = {
@@ -461,16 +466,13 @@
             initTimeSelectors();
             renderAll();
 
-            // 进入页面自动处理 GitHub 配置和读取
             if (githubConfig) {
                 fetchFromGithub(true);
             } else {
-                // 如果没有配置，延迟500ms弹出配置窗口，让页面先渲染完成
                 setTimeout(openGithubModal, 500);
             }
         };
 
-        // 核心功能：自动分类
         function autoCategorize(text) {
             if (!text) return;
             const categorySelect = document.getElementById('planCategory');
@@ -620,8 +622,20 @@
         function renderList() {
             const date = datePicker.value;
             const list = document.getElementById('planList');
-            const dayPlans = db.plans[date] || [];
+            const rawPlans = db.plans[date] || [];
+            
+            // 关键改动：排序逻辑
+            // 规则：未完成（completed: false）在前，已完成（completed: true）在后
+            // 同状态下按开始时间排序
+            const dayPlans = [...rawPlans].sort((a, b) => {
+                if (a.completed !== b.completed) {
+                    return a.completed ? 1 : -1;
+                }
+                return a.timeRange[0].localeCompare(b.timeRange[0]);
+            });
+            
             const summary = db.summaries[date] || { mood: '', text: '' };
+            
             if (dayPlans.length === 0) {
                 list.innerHTML = `<div class="py-16 text-center text-slate-300"><p class="text-5xl mb-4 opacity-20">📝</p><p class="text-sm font-medium">该日期暂无计划</p></div>`;
             } else {
@@ -668,20 +682,86 @@
             document.getElementById('satisfactionText').innerText = satRate + '%';
         }
 
+        // 计算时间差(分钟)
+        function getDurationInMinutes(start, end) {
+            if (!start || !end) return 0;
+            const [sh, sm] = start.split(':').map(Number);
+            const [eh, em] = end.split(':').map(Number);
+            let diff = (eh * 60 + em) - (sh * 60 + sm);
+            if (diff < 0) diff += 24 * 60; // 跨天处理
+            return diff;
+        }
+
+        // 格式化分钟为 xh ym
+        function formatDuration(mins) {
+            if (mins === 0) return '0m';
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            if (h > 0 && m > 0) return `${h}h${m}m`;
+            if (h > 0) return `${h}h`;
+            return `${m}m`;
+        }
+
         function renderCharts() {
             const date = datePicker.value;
             const dayPlans = db.plans[date] || [];
             const cats = ['学习', '健身', '娱乐', '生活'];
+            
             const catColors = { '学习': 'bg-blue-500', '健身': 'bg-emerald-500', '娱乐': 'bg-purple-500', '生活': 'bg-orange-500' };
+            const catBgColors = { '学习': 'text-blue-600 bg-blue-50', '健身': 'text-emerald-600 bg-emerald-50', '娱乐': 'text-purple-600 bg-purple-50', '生活': 'text-orange-600 bg-orange-50' };
+            const catIcons = { '学习': '📚', '健身': '💪', '娱乐': '🎮', '生活': '🏠' };
+
+            // 1. 统计当天的任务数量和时间
             const stats = { '学习': 0, '健身': 0, '娱乐': 0, '生活': 0 };
-            dayPlans.forEach(p => stats[p.category]++);
+            const dailyTimeStats = { '学习': 0, '健身': 0, '娱乐': 0, '生活': 0 };
+
+            dayPlans.forEach(p => {
+                stats[p.category]++;
+                if (p.timeRange && p.timeRange.length === 2) {
+                    dailyTimeStats[p.category] += getDurationInMinutes(p.timeRange[0], p.timeRange[1]);
+                }
+            });
+
+            // 渲染当日百分比及时间
             document.getElementById('categoryChart').innerHTML = cats.map(c => {
                 const pct = dayPlans.length ? (stats[c] / dayPlans.length) * 100 : 0;
+                const timeStr = formatDuration(dailyTimeStats[c]);
                 return `<div class="space-y-1.5">
-                    <div class="flex justify-between text-[11px] font-bold text-slate-500 px-1"><span>${c}</span><span>${Math.round(pct)}%</span></div>
+                    <div class="flex justify-between items-end text-[11px] font-bold text-slate-500 px-1">
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-700">${c}</span>
+                            ${dailyTimeStats[c] > 0 ? `<span class="text-[9px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">${timeStr}</span>` : ''}
+                        </div>
+                        <span>${Math.round(pct)}%</span>
+                    </div>
                     <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden"><div class="chart-bar ${catColors[c]} h-full transition-all duration-1000" style="width: ${pct}%"></div></div>
                 </div>`;
             }).join('');
+
+            // 2. 统计所有历史的总时间
+            const totalTimeStats = { '学习': 0, '健身': 0, '娱乐': 0, '生活': 0 };
+            Object.values(db.plans).forEach(plans => {
+                plans.forEach(p => {
+                    if (p.timeRange && p.timeRange.length === 2) {
+                        totalTimeStats[p.category] += getDurationInMinutes(p.timeRange[0], p.timeRange[1]);
+                    }
+                });
+            });
+
+            // 渲染历史累计时长卡片
+            const historicalChart = document.getElementById('historicalTimeChart');
+            if (historicalChart) {
+                historicalChart.innerHTML = cats.map(c => {
+                    const hours = (totalTimeStats[c] / 60).toFixed(1);
+                    return `
+                    <div class="${catBgColors[c]} p-3 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm">
+                        <span class="text-xl mb-1">${catIcons[c]}</span>
+                        <span class="text-[10px] font-bold opacity-70 uppercase mb-1">${c}</span>
+                        <span class="text-xl font-black">${hours}<span class="text-[10px] ml-0.5 opacity-70">h</span></span>
+                    </div>
+                    `;
+                }).join('');
+            }
         }
 
         function renderFullHistory() {
@@ -785,8 +865,6 @@
             const t = document.getElementById('toast');
             t.innerText = msg;
             t.classList.remove('opacity-0');
-            
-            // 如果已有计时器先清除
             if(window.toastTimer) clearTimeout(window.toastTimer);
             window.toastTimer = setTimeout(() => t.classList.add('opacity-0'), 2500);
         }
